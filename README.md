@@ -125,10 +125,26 @@ Traditional metrics like accuracy were **intentionally avoided**.
 
 ```
 CREDIT CARD FRAUD DETECTION/
-├── app.py                  # Streamlit application
-├── Credit_Card.ipynb       # Full ML notebook
-├── credit_card_fraud_dataset.csv
-├── artifacts/              # Generated locally, not tracked in Git
+├── src/                           # Modular source code
+│   ├── components/
+│   │   ├── data_ingestion.py      # Data loading and validation
+│   │   ├── data_transformation.py # Data preprocessing and splitting
+│   │   ├── feature_engineering.py # Feature extraction and preparation
+│   │   ├── model_trainer.py       # Model training utilities
+│   │   ├── model_evaluation.py    # Model evaluation and metrics
+│   │   └── __init__.py
+│   ├── pipeline/
+│   │   ├── training_pipeline.py   # Complete training workflow
+│   │   ├── prediction_pipeline.py # Real-time prediction engine
+│   │   └── __init__.py
+│   ├── exception.py               # Custom exceptions
+│   ├── logger.py                  # Logging utilities
+│   ├── utils.py                   # Constants and helper functions
+│   └── __init__.py
+├── app.py                         # Streamlit fraud risk dashboard
+├── CREDIT_CARD.ipynb              # ML notebook (for training models)
+├── credit_card_fraud_dataset.csv  # Input dataset
+├── artifacts/                     # Generated locally (not in Git)
 │   ├── fraud_rf_model.pkl
 │   ├── preprocessor.pkl
 │   ├── reference_scores.npy
@@ -137,6 +153,24 @@ CREDIT CARD FRAUD DETECTION/
 ├── README.md
 └── .gitignore
 ```
+
+### 🏗️ Modular Architecture Breakdown
+
+**`src/components/`** - Reusable ML components
+- `data_ingestion.py`: Load & validate data
+- `data_transformation.py`: Preprocessing, train-test split, feature scaling
+- `feature_engineering.py`: Temporal features, one-hot encoding, user input prep
+- `model_trainer.py`: Train Random Forest, Logistic Regression, Isolation Forest
+- `model_evaluation.py`: Metrics (ROC-AUC, PR-AUC, fraud capture rate)
+
+**`src/pipeline/`** - High-level workflows
+- `training_pipeline.py`: Orchestrates complete model training (end-to-end)
+- `prediction_pipeline.py`: Real-time fraud risk prediction for transactions
+
+**`src/`** - Core utilities
+- `exception.py`: Custom error handling
+- `logger.py`: Logging for debugging & monitoring
+- `utils.py`: Constants (thresholds, paths, locations)
 
 ---
 
@@ -148,18 +182,77 @@ CREDIT CARD FRAUD DETECTION/
 pip install -r requirements.txt
 ```
 
-### 2️⃣ Generate model artifacts locally
+### 2️⃣ Generate model artifacts (Train the model)
 
-Run the notebook:
+Run the Jupyter notebook to train the model:
 
 ```bash
-Credit_Card.ipynb
+jupyter notebook CREDIT_CARD.ipynb
 ```
 
-### 3️⃣ Run Streamlit app
+Or open `CREDIT_CARD.ipynb` in VS Code and run all cells.
+
+This generates:
+- `artifacts/fraud_rf_model.pkl` - Trained Random Forest model
+- `artifacts/preprocessor.pkl` - Data preprocessing pipeline
+- `artifacts/feature_columns.pkl` - Feature column order
+- `artifacts/reference_scores.npy` - Training data risk scores
+
+### 3️⃣ Run Streamlit dashboard
 
 ```bash
 streamlit run app.py
+```
+
+Dashboard will be available at: `http://localhost:8501`
+
+---
+
+## 💡 Using Components Directly
+
+For advanced users, components can be imported and used independently:
+
+```python
+from src.components.data_ingestion import DataIngestion
+from src.components.feature_engineering import FeatureEngineering
+from src.components.model_trainer import ModelTrainer
+
+# Load data
+ingestion = DataIngestion()
+df = ingestion.load_data("credit_card_fraud_dataset.csv")
+
+# Engineer features
+feature_eng = FeatureEngineering()
+df_processed = feature_eng.prepare_features(df)
+
+# Train models
+trainer = ModelTrainer()
+rf_model = trainer.train_random_forest(X_train, y_train)
+```
+
+---
+
+## 🚀 Making Predictions
+
+After training, use the Streamlit app OR predict programmatically:
+
+```python
+from src.pipeline.prediction_pipeline import PredictionPipeline
+
+pipeline = PredictionPipeline()
+
+# Single prediction
+result = pipeline.predict_risk({
+    "amount": 1500.0,
+    "merchant_id": 42,
+    "transaction_type": "purchase",
+    "location": "New York",
+    "transaction_time": "2024-01-15T14:30:00"
+})
+
+print(f"Risk Score: {result['risk_score']:.5f}")
+print(f"Risk Percentile: {result['percentile']:.2f}%")
+print(f"Risk Level: {result['risk_level']['label']}")
 ```
 
 ---

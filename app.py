@@ -1,9 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import matplotlib.pyplot as plt
 import datetime
+import sys
+from pathlib import Path
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+from src.pipeline.prediction_pipeline import PredictionPipeline
+from src.utils import LOCATIONS
 
 # -------------------------------
 # CONFIG
@@ -17,12 +24,14 @@ st.title("💳 Credit Card Fraud Risk Dashboard")
 st.caption("Risk prioritization system for fraud analysts")
 
 # -------------------------------
-# LOAD ARTIFACTS
+# LOAD PREDICTION PIPELINE
 # -------------------------------
-model = joblib.load("artifacts/fraud_rf_model.pkl")
-preprocessor = joblib.load("artifacts/preprocessor.pkl")
-feature_columns = joblib.load("artifacts/feature_columns.pkl")
-reference_scores = np.load("artifacts/reference_scores.npy")
+@st.cache_resource
+def load_prediction_pipeline():
+    """Load and cache the prediction pipeline"""
+    return PredictionPipeline()
+
+prediction_pipeline = load_prediction_pipeline()
 
 # -------------------------------
 # SIDEBAR INPUTS
@@ -39,11 +48,7 @@ transaction_type = st.sidebar.selectbox(
 
 location = st.sidebar.selectbox(
     "Location",
-    [
-        "New York", "Los Angeles", "Houston", "Dallas",
-        "Phoenix", "Philadelphia", "San Antonio",
-        "San Diego", "San Jose"
-    ]
+    LOCATIONS
 )
 
 transaction_time = st.sidebar.time_input("Transaction Time")
@@ -58,56 +63,23 @@ day = now.day
 weekday = now.weekday()
 is_weekend = int(weekday in [5, 6])
 
-# Base input row
-input_dict = {
-    "Amount": amount,
-    "MerchantID": merchant_id,
-    "hour": hour,
-    "day": day,
-    "weekday": weekday,
-    "is_weekend": is_weekend
+# Prepare transaction data for prediction
+transaction_data = {
+    "amount": amount,
+    "merchant_id": merchant_id,
+    "transaction_type": transaction_type,
+    "location": location,
+    "transaction_time": transaction_time
 }
 
-# Initialize ALL expected columns with 0
-input_df = pd.DataFrame(
-    np.zeros((1, len(feature_columns))),
-    columns=feature_columns
-)
-
-# Fill numeric values
-for col in input_dict:
-    input_df[col] = input_dict[col]
-
-# One-hot TransactionType
-if transaction_type == "refund":
-    input_df["TransactionType_refund"] = 1
-
-# One-hot Location
-loc_col = f"Location_{location}"
-if loc_col in input_df.columns:
-    input_df[loc_col] = 1
-
 # -------------------------------
-# TRANSFORM & SCORE
+# PREDICT RISK
 # -------------------------------
-X_processed = preprocessor.transform(input_df)
-risk_score = model.predict_proba(X_processed)[0][1]
+prediction = prediction_pipeline.predict_risk(transaction_data)
 
-# Percentile calculation
-percentile = (reference_scores < risk_score).mean() * 100
-
-# -------------------------------
-# RISK LABEL
-# -------------------------------
-if percentile >= 98.5:
-    risk_label = "🔴 HIGH RISK"
-    color = "red"
-elif percentile >= 95:
-    risk_label = "🟠 MEDIUM RISK"
-    color = "orange"
-else:
-    risk_label = "🟢 LOW RISK"
-    color = "green"
+risk_score = prediction["risk_score"]
+percentile = prediction["percentile"]
+risk_level = prediction["risk_level"]
 
 # -------------------------------
 # MAIN DASHBOARD
@@ -117,12 +89,12 @@ col1, col2 = st.columns(2)
 with col1:
     st.metric("Risk Percentile", f"{percentile:.2f}%")
     st.metric("Fraud Risk Score", f"{risk_score:.5f}")
-    st.markdown(f"### Risk Level: :{color}[{risk_label}]")
+    st.markdown(f"### Risk Level: :{risk_level['color']}[{risk_level['label']}]")
 
 with col2:
     st.markdown("### 📊 Risk Distribution (Training Data)")
     fig, ax = plt.subplots()
-    ax.hist(reference_scores, bins=50)
+    ax.hist(prediction_pipeline.reference_scores, bins=50)
     ax.axvline(risk_score, linestyle="--")
     ax.set_xlabel("Risk Score")
     ax.set_ylabel("Frequency")
