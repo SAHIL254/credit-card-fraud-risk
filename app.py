@@ -6,8 +6,12 @@ import datetime
 import sys
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add project root to path for imports (allow importing as package)
+sys.path.insert(0, str(Path(__file__).parent))
+
+from src.logger import setup_logging
+# initialize logging as early as possible
+setup_logging()
 
 from src.pipeline.prediction_pipeline import PredictionPipeline
 from src.utils import LOCATIONS
@@ -65,11 +69,14 @@ is_weekend = int(weekday in [5, 6])
 
 # Prepare transaction data for prediction
 transaction_data = {
-    "amount": amount,
-    "merchant_id": merchant_id,
-    "transaction_type": transaction_type,
-    "location": location,
-    "transaction_time": transaction_time
+    "Amount": amount,
+    "MerchantID": merchant_id,
+    "TransactionType": transaction_type,
+    "Location": location,
+    "hour": hour,
+    "day": day,
+    "weekday": weekday,
+    "is_weekend": is_weekend
 }
 
 # -------------------------------

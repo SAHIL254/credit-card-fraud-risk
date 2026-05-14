@@ -6,6 +6,10 @@ Handles loading and basic analysis of credit card fraud dataset
 import pandas as pd
 from pathlib import Path
 
+from src.logger import get_logger
+from src.exception import DataIngestionError, DataValidationError
+from src.utils import DATASET_PATH
+
 
 class DataIngestion:
     """
@@ -19,12 +23,9 @@ class DataIngestion:
         Args:
             data_path: Path to the CSV dataset file
         """
-        if data_path is None:
-            # Default path relative to project root
-            project_root = Path(__file__).parent.parent.parent
-            self.data_path = project_root / "credit_card_fraud_dataset.csv"
-        else:
-            self.data_path = Path(data_path)
+        self.logger = get_logger(__name__)
+        self.data_path = Path(data_path) if data_path else DATASET_PATH
+        self.logger.info(f"DataIngestion initialized with path: {self.data_path}")
 
     def load_data(self) -> pd.DataFrame:
         """
@@ -34,13 +35,16 @@ class DataIngestion:
             DataFrame containing the dataset
         """
         try:
+            self.logger.info(f"Loading data from {self.data_path}")
             df = pd.read_csv(self.data_path)
-            print(f"✅ Data loaded successfully. Shape: {df.shape}")
+            self.logger.info(f"✅ Data loaded successfully. Shape: {df.shape}")
             return df
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Dataset not found at {self.data_path}")
+        except FileNotFoundError as e:
+            self.logger.error(f"Dataset not found at {self.data_path}")
+            raise DataIngestionError(f"Dataset not found at {self.data_path}") from e
         except Exception as e:
-            raise Exception(f"Error loading data: {str(e)}")
+            self.logger.error(f"Error loading data: {str(e)}")
+            raise DataIngestionError(f"Error loading data: {str(e)}") from e
 
     def get_data_info(self, df: pd.DataFrame) -> dict:
         """

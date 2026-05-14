@@ -35,6 +35,25 @@ DATE_COLUMN = "TransactionDate"
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 
+# Model hyperparameters
+ISO_FOREST_PARAMS = {
+    "n_estimators": 200,
+    "contamination": 0.01,
+    "random_state": RANDOM_STATE
+}
+
+LOG_REG_PARAMS = {
+    "max_iter": 1000,
+    "class_weight": "balanced"
+}
+
+RF_PARAMS = {
+    "n_estimators": 300,
+    "class_weight": "balanced",
+    "random_state": RANDOM_STATE,
+    "n_jobs": -1
+}
+
 # Risk thresholds
 HIGH_RISK_THRESHOLD = 98.5  # percentile
 MEDIUM_RISK_THRESHOLD = 95   # percentile

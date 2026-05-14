@@ -1,6 +1,6 @@
 """
 Feature Engineering Component
-Handles feature extraction and preparation for credit card fraud detection
+Handles feature extraction and preprocessing for fraud detection
 """
 
 import pandas as pd
@@ -8,42 +8,58 @@ import numpy as np
 from datetime import datetime
 from typing import List
 
+from src.logger import get_logger
+from src.exception import FeatureEngineeringError
+from src.utils import NUMERIC_FEATURES, CATEGORICAL_FEATURES, ID_COLUMN, DATE_COLUMN
+
 
 class FeatureEngineering:
     """
-    Component for engineering features from raw credit card transaction data
+    Component for feature engineering and preprocessing
     """
 
     def __init__(self):
         """Initialize feature engineering component"""
-        self.numeric_features = ["Amount", "MerchantID", "hour", "day", "weekday"]
-        self.categorical_features = ["TransactionType", "Location"]
-        self.target_column = "IsFraud"
-        self.id_column = "TransactionID"
-        self.date_column = "TransactionDate"
+        self.logger = get_logger(__name__)
+        self.numeric_features = NUMERIC_FEATURES
+        self.categorical_features = CATEGORICAL_FEATURES
+        self.id_column = ID_COLUMN
+        self.date_column = DATE_COLUMN
+        self.logger.info("FeatureEngineering initialized")
 
     def extract_temporal_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Extract temporal features from datetime column
 
         Args:
-            df: Input DataFrame with TransactionDate column
+            df: Input DataFrame with datetime column
 
         Returns:
             DataFrame with added temporal features
         """
-        df = df.copy()
-        df[self.date_column] = pd.to_datetime(df[self.date_column])
+        try:
+            self.logger.info("Extracting temporal features...")
+            df = df.copy()
 
-        df["hour"] = df[self.date_column].dt.hour
-        df["day"] = df[self.date_column].dt.day
-        df["weekday"] = df[self.date_column].dt.weekday
-        df["is_weekend"] = df["weekday"].isin([5, 6]).astype(int)
+            if self.date_column not in df.columns:
+                raise FeatureEngineeringError(f"Date column '{self.date_column}' not found")
 
-        df = df.drop(columns=[self.date_column])
+            df[self.date_column] = pd.to_datetime(df[self.date_column], errors='coerce')
+            if df[self.date_column].isnull().any():
+                self.logger.warning("Some date values could not be parsed")
 
-        print("✅ Temporal features extracted")
-        return df
+            df["hour"] = df[self.date_column].dt.hour
+            df["day"] = df[self.date_column].dt.day
+            df["weekday"] = df[self.date_column].dt.weekday
+            df["is_weekend"] = df["weekday"].isin([5, 6]).astype(int)
+
+            df = df.drop(columns=[self.date_column])
+            self.logger.info("✅ Temporal features extracted")
+            return df
+
+        except Exception as e:
+            self.logger.error(f"Error extracting temporal features: {str(e)}")
+            raise FeatureEngineeringError(f"Temporal feature extraction failed: {str(e)}") from e
 
     def apply_one_hot_encoding(self, df: pd.DataFrame, drop_first: bool = True) -> pd.DataFrame:
         """
@@ -56,38 +72,46 @@ class FeatureEngineering:
         Returns:
             DataFrame with one-hot encoded categorical variables
         """
-        df = df.copy()
-        df = pd.get_dummies(df, columns=self.categorical_features, drop_first=drop_first)
+        try:
+            self.logger.info(f"Applying one-hot encoding to {self.categorical_features}...")
+            df = df.copy()
+            df = pd.get_dummies(df, columns=self.categorical_features, drop_first=drop_first)
+            self.logger.info(f"✅ One-hot encoding applied. New shape: {df.shape}")
+            return df
+        except Exception as e:
+            self.logger.error(f"Error in one-hot encoding: {str(e)}")
+            raise FeatureEngineeringError(f"One-hot encoding failed: {str(e)}") from e
 
-        print(f"✅ One-hot encoding applied. New shape: {df.shape}")
-        return df
-
-    def prepare_features(self, df: pd.DataFrame, drop_id: bool = True) -> pd.DataFrame:
+    def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Complete feature preparation pipeline
 
         Args:
-            df: Raw DataFrame
-            drop_id: Whether to drop ID column
+            df: Raw input DataFrame
 
         Returns:
-            Processed DataFrame with engineered features
+            Processed DataFrame ready for modeling
         """
-        df = df.copy()
+        try:
+            self.logger.info("Starting feature preparation pipeline...")
 
-        # Drop ID column if requested
-        if drop_id and self.id_column in df.columns:
-            df = df.drop(columns=[self.id_column])
-            print(f"✅ Dropped {self.id_column} column")
+            # Drop ID column if exists
+            if self.id_column in df.columns:
+                df = df.drop(columns=[self.id_column])
+                self.logger.info(f"✅ Dropped {self.id_column} column")
 
-        # Extract temporal features
-        df = self.extract_temporal_features(df)
+            # Extract temporal features
+            df = self.extract_temporal_features(df)
 
-        # Apply one-hot encoding
-        df = self.apply_one_hot_encoding(df)
+            # Apply one-hot encoding
+            df = self.apply_one_hot_encoding(df)
 
-        print(f"✅ Feature preparation completed. Final shape: {df.shape}")
-        return df
+            self.logger.info(f"✅ Feature preparation completed. Final shape: {df.shape}")
+            return df
+
+        except Exception as e:
+            self.logger.error(f"Feature preparation failed: {str(e)}")
+            raise FeatureEngineeringError(f"Feature preparation failed: {str(e)}") from e
 
     def prepare_user_input(
         self,

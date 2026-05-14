@@ -17,6 +17,11 @@ class DataValidationError(FraudDetectionException):
     pass
 
 
+class DataTransformationError(FraudDetectionException):
+    """Exception raised for data transformation errors"""
+    pass
+
+
 class FeatureEngineeringError(FraudDetectionException):
     """Exception raised for feature engineering errors"""
     pass

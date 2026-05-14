@@ -5,19 +5,25 @@ Orchestrates the complete model training workflow
 
 import os
 import sys
+from pathlib import Path
+
+# If running this module directly (python src\pipeline\training_pipeline.py),
+# ensure the project root is on sys.path so `import src...` works.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+from src.components.data_ingestion import DataIngestion
+from src.components.data_transformation import DataTransformation
+from src.components.feature_engineering import FeatureEngineering
+from src.components.model_trainer import ModelTrainer
+from src.components.model_evaluation import ModelEvaluation
 
-from components.data_ingestion import DataIngestion
-from components.data_transformation import DataTransformation
-from components.feature_engineering import FeatureEngineering
-from components.model_trainer import ModelTrainer
-from components.model_evaluation import ModelEvaluation
+from src.logger import setup_logging, get_logger
+from src.exception import FraudDetectionException
+from src.utils import ARTIFACTS_DIR, ensure_artifacts_directory
 
 
 class TrainingPipeline:
@@ -27,6 +33,16 @@ class TrainingPipeline:
 
     def __init__(self):
         """Initialize training pipeline"""
+        # Setup logging
+        setup_logging()
+        self.logger = get_logger(__name__)
+
+        # Ensure artifacts directory exists
+        ensure_artifacts_directory()
+
+        self.logger.info("TrainingPipeline initialized")
+
+        # Initialize components
         self.data_ingestion = DataIngestion()
         self.feature_engineering = FeatureEngineering()
         self.data_transformation = DataTransformation()
@@ -34,31 +50,37 @@ class TrainingPipeline:
         self.model_evaluation = ModelEvaluation()
 
         # Create artifacts directory
-        self.artifacts_dir = Path(__file__).parent.parent.parent / "artifacts"
-        self.artifacts_dir.mkdir(exist_ok=True)
+        self.artifacts_dir = ARTIFACTS_DIR
 
     def run_pipeline(self):
         """
         Execute the complete training pipeline
         """
+        self.logger.info("Starting training pipeline execution")
+
         print("=" * 80)
         print("CREDIT CARD FRAUD DETECTION - TRAINING PIPELINE")
         print("=" * 80)
 
         try:
             # 1. Data Ingestion
+            self.logger.info("Step 1: Data Ingestion")
             print("\n[1/8] Data Ingestion...")
             df = self.data_ingestion.load_data()
             self.data_ingestion.validate_data(df)
+            self.data_ingestion.validate_data(df)
 
             # 2. Feature Engineering
+            self.logger.info("Step 2: Feature Engineering")
             print("\n[2/8] Feature Engineering...")
             df_processed = self.feature_engineering.prepare_features(df)
 
+            self.logger.info("Step 3: Data Preparation")
             # 3. Data Preparation
             print("\n[3/8] Data Preparation...")
             X, y = self.data_transformation.prepare_features_and_target(df_processed)
 
+            self.logger.info("Step 4: Data Splitting")
             # 4. Data Splitting
             print("\n[4/8] Data Splitting...")
             X_train, X_test, y_train, y_test = self.data_transformation.split_data(X, y)
@@ -66,7 +88,7 @@ class TrainingPipeline:
             # 5. Data Preprocessing
             print("\n[5/8] Data Preprocessing...")
             preprocessor = self.data_transformation.create_preprocessor()
-            X_train_p, X_test_p = self.data_transformation.preprocess_data(X_train, X_test, preprocessor)
+            X_train_p, X_test_p, preprocessor = self.data_transformation.preprocess_data(X_train, X_test, preprocessor)
 
             # 6. Model Training
             print("\n[6/8] Model Training...")

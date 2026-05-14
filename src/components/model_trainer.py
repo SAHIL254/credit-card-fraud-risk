@@ -6,41 +6,26 @@ Handles training of machine learning models for fraud detection
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, IsolationForest
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
+
+from src.logger import get_logger
+from src.exception import ModelTrainingError
+from src.utils import (
+    ISO_FOREST_PARAMS,
+    LOG_REG_PARAMS,
+    RF_PARAMS
+)
 
 
 class ModelTrainer:
     """
-    Component for training various machine learning models
+    Component for training machine learning models
     """
 
-    def __init__(self, random_state: int = 42):
-        """
-        Initialize model trainer
-
-        Args:
-            random_state: Random seed for reproducibility
-        """
-        self.random_state = random_state
-
-        # Model configurations
-        self.model_configs = {
-            "isolation_forest": {
-                "n_estimators": 200,
-                "contamination": 0.01,
-                "random_state": self.random_state
-            },
-            "logistic_regression": {
-                "max_iter": 1000,
-                "class_weight": "balanced"
-            },
-            "random_forest": {
-                "n_estimators": 300,
-                "class_weight": "balanced",
-                "random_state": self.random_state,
-                "n_jobs": -1
-            }
-        }
+    def __init__(self):
+        """Initialize model trainer component"""
+        self.logger = get_logger(__name__)
+        self.logger.info("ModelTrainer initialized")
 
     def train_isolation_forest(self, X_train_normal: np.ndarray) -> IsolationForest:
         """
@@ -52,12 +37,15 @@ class ModelTrainer:
         Returns:
             Trained IsolationForest model
         """
-        config = self.model_configs["isolation_forest"]
-        model = IsolationForest(**config)
-        model.fit(X_train_normal)
-
-        print("✅ Isolation Forest trained successfully")
-        return model
+        try:
+            self.logger.info("Training Isolation Forest...")
+            model = IsolationForest(**ISO_FOREST_PARAMS)
+            model.fit(X_train_normal)
+            self.logger.info("✅ Isolation Forest trained successfully")
+            return model
+        except Exception as e:
+            self.logger.error(f"Isolation Forest training failed: {str(e)}")
+            raise ModelTrainingError(f"Isolation Forest training failed: {str(e)}") from e
 
     def train_logistic_regression(self, X_train: np.ndarray, y_train: np.ndarray) -> LogisticRegression:
         """
@@ -70,12 +58,15 @@ class ModelTrainer:
         Returns:
             Trained LogisticRegression model
         """
-        config = self.model_configs["logistic_regression"]
-        model = LogisticRegression(**config)
-        model.fit(X_train, y_train)
-
-        print("✅ Logistic Regression trained successfully")
-        return model
+        try:
+            self.logger.info("Training Logistic Regression...")
+            model = LogisticRegression(**LOG_REG_PARAMS)
+            model.fit(X_train, y_train)
+            self.logger.info("✅ Logistic Regression trained successfully")
+            return model
+        except Exception as e:
+            self.logger.error(f"Logistic Regression training failed: {str(e)}")
+            raise ModelTrainingError(f"Logistic Regression training failed: {str(e)}") from e
 
     def train_random_forest(self, X_train: np.ndarray, y_train: np.ndarray) -> RandomForestClassifier:
         """
@@ -88,36 +79,45 @@ class ModelTrainer:
         Returns:
             Trained RandomForestClassifier model
         """
-        config = self.model_configs["random_forest"]
-        model = RandomForestClassifier(**config)
-        model.fit(X_train, y_train)
+        try:
+            self.logger.info("Training Random Forest...")
+            model = RandomForestClassifier(**RF_PARAMS)
+            model.fit(X_train, y_train)
+            self.logger.info("✅ Random Forest trained successfully")
+            return model
+        except Exception as e:
+            self.logger.error(f"Random Forest training failed: {str(e)}")
+            raise ModelTrainingError(f"Random Forest training failed: {str(e)}") from e
 
-        print("✅ Random Forest trained successfully")
-        return model
-
-    def train_all_models(self, X_train: np.ndarray, y_train: np.ndarray, X_train_normal: np.ndarray = None) -> Dict[str, Any]:
+    def train_all_models(self, X_train: np.ndarray, y_train: np.ndarray, X_train_normal: np.ndarray) -> Dict[str, Any]:
         """
-        Train all available models
+        Train all models (Isolation Forest, Logistic Regression, Random Forest)
 
         Args:
             X_train: Training features
             y_train: Training target
-            X_train_normal: Normal transactions for Isolation Forest (optional)
+            X_train_normal: Normal transaction features for Isolation Forest
 
         Returns:
-            Dictionary with trained models
+            Dictionary containing all trained models
         """
-        models = {}
+        try:
+            self.logger.info("Training all models...")
 
-        # Train Logistic Regression
-        models["logistic_regression"] = self.train_logistic_regression(X_train, y_train)
+            models = {}
 
-        # Train Random Forest
-        models["random_forest"] = self.train_random_forest(X_train, y_train)
-
-        # Train Isolation Forest (if normal data provided)
-        if X_train_normal is not None:
+            # Train Isolation Forest
             models["isolation_forest"] = self.train_isolation_forest(X_train_normal)
 
-        print(f"✅ All models trained: {list(models.keys())}")
-        return models
+            # Train Logistic Regression
+            models["logistic_regression"] = self.train_logistic_regression(X_train, y_train)
+
+            # Train Random Forest
+            models["random_forest"] = self.train_random_forest(X_train, y_train)
+
+            self.logger.info(f"✅ All models trained: {list(models.keys())}")
+            return models
+
+        except Exception as e:
+            self.logger.error(f"Model training pipeline failed: {str(e)}")
+            raise ModelTrainingError(f"Model training pipeline failed: {str(e)}") from e

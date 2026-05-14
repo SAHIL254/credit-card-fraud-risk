@@ -10,6 +10,18 @@ from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
 
+from src.logger import get_logger
+from src.exception import PredictionError, ArtifactNotFoundError
+from src.utils import (
+    ARTIFACTS_DIR,
+    MODEL_PATH,
+    PREPROCESSOR_PATH,
+    FEATURE_COLUMNS_PATH,
+    REFERENCE_SCORES_PATH,
+    HIGH_RISK_THRESHOLD,
+    MEDIUM_RISK_THRESHOLD
+)
+
 
 class PredictionPipeline:
     """
@@ -18,27 +30,34 @@ class PredictionPipeline:
 
     def __init__(self):
         """Initialize prediction pipeline"""
-        self.artifacts_dir = Path(__file__).parent.parent.parent / "artifacts"
+        self.logger = get_logger(__name__)
+
+        # Risk thresholds
+        self.high_risk_threshold = HIGH_RISK_THRESHOLD
+        self.medium_risk_threshold = MEDIUM_RISK_THRESHOLD
 
         # Load artifacts
         self._load_artifacts()
 
-        # Risk thresholds
-        self.high_risk_threshold = 98.5  # percentile
-        self.medium_risk_threshold = 95   # percentile
+        self.logger.info("PredictionPipeline initialized")
 
     def _load_artifacts(self):
         """Load trained model and preprocessing artifacts"""
         try:
-            self.model = joblib.load(self.artifacts_dir / "fraud_rf_model.pkl")
-            self.preprocessor = joblib.load(self.artifacts_dir / "preprocessor.pkl")
-            self.feature_columns = joblib.load(self.artifacts_dir / "feature_columns.pkl")
-            self.reference_scores = np.load(self.artifacts_dir / "reference_scores.npy")
-            print("✅ Prediction pipeline artifacts loaded successfully")
+            self.logger.info("Loading prediction artifacts...")
+
+            self.model = joblib.load(MODEL_PATH)
+            self.preprocessor = joblib.load(PREPROCESSOR_PATH)
+            self.feature_columns = joblib.load(FEATURE_COLUMNS_PATH)
+            self.reference_scores = np.load(REFERENCE_SCORES_PATH)
+
+            self.logger.info("✅ Prediction pipeline artifacts loaded successfully")
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Required artifact not found: {e}")
+            self.logger.error(f"Required artifact not found: {e}")
+            raise ArtifactNotFoundError(f"Required artifact not found: {e}") from e
         except Exception as e:
-            raise Exception(f"Error loading artifacts: {str(e)}")
+            self.logger.error(f"Error loading artifacts: {str(e)}")
+            raise PredictionError(f"Error loading artifacts: {str(e)}") from e
 
     def predict_risk(self, transaction_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -51,6 +70,8 @@ class PredictionPipeline:
             Dictionary with risk assessment
         """
         try:
+            self.logger.info("Processing fraud risk prediction request")
+
             # Prepare input features
             input_df = self._prepare_transaction_features(transaction_data)
 
@@ -73,10 +94,14 @@ class PredictionPipeline:
                 "timestamp": datetime.now().isoformat()
             }
 
+            self.logger.info(f"Prediction completed - Risk Level: {risk_level['label']}")
             return result
 
+        except PredictionError:
+            raise
         except Exception as e:
-            raise Exception(f"Prediction failed: {str(e)}")
+            self.logger.error(f"Prediction failed: {str(e)}")
+            raise PredictionError(f"Prediction failed: {str(e)}") from e
 
     def _prepare_transaction_features(self, transaction_data: Dict[str, Any]):
         """
@@ -88,25 +113,24 @@ class PredictionPipeline:
         Returns:
             Processed DataFrame ready for prediction
         """
-        # Extract transaction details
-        amount = transaction_data.get("amount", 0)
-        merchant_id = transaction_data.get("merchant_id", 0)
-        transaction_type = transaction_data.get("transaction_type", "purchase")
-        location = transaction_data.get("location", "New York")
-        transaction_time = transaction_data.get("transaction_time", datetime.now())
+        # Extract transaction details - handle both capitalized and lowercase keys
+        amount = transaction_data.get("Amount") or transaction_data.get("amount", 0)
+        merchant_id = transaction_data.get("MerchantID") or transaction_data.get("merchant_id", 0)
+        transaction_type = transaction_data.get("TransactionType") or transaction_data.get("transaction_type", "purchase")
+        location = transaction_data.get("Location") or transaction_data.get("location", "New York")
+        
+        # Extract temporal features directly if provided
+        hour = transaction_data.get("hour", datetime.now().hour)
+        day = transaction_data.get("day", datetime.now().day)
+        weekday = transaction_data.get("weekday", datetime.now().weekday())
+        is_weekend = transaction_data.get("is_weekend", int(datetime.now().weekday() in [5, 6]))
 
-        # Handle datetime
-        if isinstance(transaction_time, str):
-            transaction_time = datetime.fromisoformat(transaction_time)
-
-        # Use current date for day/weekday calculation
-        now = datetime.now()
-
-        # Extract temporal features
-        hour = transaction_time.hour
-        day = now.day
-        weekday = now.weekday()
-        is_weekend = int(weekday in [5, 6])
+        # Handle datetime if transaction_time is provided
+        transaction_time = transaction_data.get("transaction_time") or transaction_data.get("TransactionTime")
+        if transaction_time:
+            if isinstance(transaction_time, str):
+                transaction_time = datetime.fromisoformat(transaction_time)
+            hour = transaction_time.hour
 
         # Base input dictionary
         input_dict = {
@@ -128,7 +152,7 @@ class PredictionPipeline:
                 input_df[col] = input_dict[col]
 
         # One-hot encoding for TransactionType
-        if transaction_type == "refund":
+        if transaction_type.lower() == "refund":
             if "TransactionType_refund" in input_df.columns:
                 input_df["TransactionType_refund"] = 1
 
@@ -178,17 +202,20 @@ class PredictionPipeline:
         Returns:
             List of prediction results
         """
+        self.logger.info(f"Processing batch prediction for {len(transactions)} transactions")
         results = []
-        for transaction in transactions:
+        for i, transaction in enumerate(transactions):
             try:
                 result = self.predict_risk(transaction)
                 results.append(result)
             except Exception as e:
+                self.logger.warning(f"Failed to predict transaction {i}: {str(e)}")
                 results.append({
                     "error": str(e),
                     "transaction": transaction
                 })
 
+        self.logger.info(f"Batch prediction completed: {len(results)} results")
         return results
 
     def get_model_info(self) -> Dict[str, Any]:
