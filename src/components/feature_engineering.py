@@ -52,6 +52,8 @@ class FeatureEngineering:
             df["day"] = df[self.date_column].dt.day
             df["weekday"] = df[self.date_column].dt.weekday
             df["is_weekend"] = df["weekday"].isin([5, 6]).astype(int)
+            # additional temporal flags
+            df["is_night"] = ((df["hour"] >= 0) & (df["hour"] <= 5)).astype(int)
 
             df = df.drop(columns=[self.date_column])
             self.logger.info("✅ Temporal features extracted")
@@ -103,8 +105,24 @@ class FeatureEngineering:
             # Extract temporal features
             df = self.extract_temporal_features(df)
 
-            # Apply one-hot encoding
-            df = self.apply_one_hot_encoding(df)
+            # Aggregated merchant/location features (computed on available df)
+            if "MerchantID" in df.columns:
+                df["merchant_fraud_rate"] = df.groupby("MerchantID")["IsFraud"].transform("mean")
+                df["amount_vs_merchant_mean"] = df["Amount"] / df.groupby("MerchantID")["Amount"].transform("mean")
+                df["merchant_txn_count"] = df.groupby("MerchantID")["MerchantID"].transform("count")
+                df["merchant_fraud_rate"] = df["merchant_fraud_rate"].fillna(0)
+                df["amount_vs_merchant_mean"] = df["amount_vs_merchant_mean"].fillna(0)
+                df["merchant_txn_count"] = df["merchant_txn_count"].fillna(0)
+
+            if "Location" in df.columns:
+                df["location_fraud_rate"] = df.groupby("Location")["IsFraud"].transform("mean")
+                df["location_fraud_rate"] = df["location_fraud_rate"].fillna(0)
+
+            # high amount flag
+            df["high_amount"] = (df["Amount"] > df["Amount"].quantile(0.95)).astype(int)
+
+            # Apply one-hot encoding (keep all categories to align with saved feature columns)
+            df = self.apply_one_hot_encoding(df, drop_first=False)
 
             self.logger.info(f"✅ Feature preparation completed. Final shape: {df.shape}")
             return df

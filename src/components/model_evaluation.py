@@ -161,21 +161,19 @@ class ModelEvaluation:
         """
         try:
             self.logger.info(f"Printing evaluation report for {model_name}")
-
-            print(f"\n{'='*60}")
-            print(f"{model_name.upper()} EVALUATION REPORT")
-            print('='*60)
+            self.logger.info('=' * 60)
+            self.logger.info(f"{model_name.upper()} EVALUATION REPORT")
+            self.logger.info('=' * 60)
 
             if "roc_auc" in metrics:
-                print(f"ROC-AUC Score: {metrics['roc_auc']:.4f}")
+                self.logger.info(f"ROC-AUC Score: {metrics['roc_auc']:.4f}")
             if "pr_auc" in metrics:
-                print(f"PR-AUC Score: {metrics['pr_auc']:.4f}")
+                self.logger.info(f"PR-AUC Score: {metrics['pr_auc']:.4f}")
 
-            print("\nClassification Report:")
+            self.logger.info("Classification Report:")
             cr = metrics.get("classification_report", {})
-            # cr is a dict mapping labels and averages to metric dicts
-            # Print header
-            print(f"{'label':<15}{'precision':>10}{'recall':>10}{'f1-score':>10}{'support':>10}")
+            # Log header
+            self.logger.info(f"{'label':<15}{'precision':>10}{'recall':>10}{'f1-score':>10}{'support':>10}")
             for label, vals in cr.items():
                 # skip aggregate rows if they don't have support
                 try:
@@ -185,15 +183,15 @@ class ModelEvaluation:
                     support = int(vals.get('support', 0))
                 except Exception:
                     continue
-                # format numeric labels if possible
-                print(f"{label:<15}{precision:10.2f}{recall:10.2f}{f1:10.2f}{support:10d}")
+                # log formatted line
+                self.logger.info(f"{label:<15}{precision:10.2f}{recall:10.2f}{f1:10.2f}{support:10d}")
 
-            print("\nConfusion Matrix:")
+            self.logger.info("Confusion Matrix:")
             cm = metrics["confusion_matrix"]
-            print(f"[[{cm[0][0]:4d} {cm[0][1]:4d}]")
-            print(f" [{cm[1][0]:4d} {cm[1][1]:4d}]]")
-            print("(True Negative  False Positive)")
-            print("(False Negative True Positive )")
+            self.logger.info(f"[[{cm[0][0]:4d} {cm[0][1]:4d}]")
+            self.logger.info(f" [{cm[1][0]:4d} {cm[1][1]:4d}]]")
+            self.logger.info("(True Negative  False Positive)")
+            self.logger.info("(False Negative True Positive )")
 
         except Exception as e:
             self.logger.error(f"Error printing evaluation report: {str(e)}")

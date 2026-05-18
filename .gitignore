@@ -38,5 +38,5 @@ Thumbs.db
 # =========================
 artifacts/*.pkl
 artifacts/*.npy
-
-
+rf_feature_importance.csv
+aggregate_mappings.json

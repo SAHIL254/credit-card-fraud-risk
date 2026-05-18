@@ -43,7 +43,7 @@ prediction_pipeline = load_prediction_pipeline()
 st.sidebar.header("🧾 Transaction Details")
 
 amount = st.sidebar.number_input("Transaction Amount", 1.0, 1000000.0, 2500.0)
-merchant_id = st.sidebar.number_input("Merchant ID", 1, 100000, 500)
+# Merchant ID removed to match notebook (not used as a direct feature)
 
 transaction_type = st.sidebar.selectbox(
     "Transaction Type",
@@ -70,7 +70,6 @@ is_weekend = int(weekday in [5, 6])
 # Prepare transaction data for prediction
 transaction_data = {
     "Amount": amount,
-    "MerchantID": merchant_id,
     "TransactionType": transaction_type,
     "Location": location,
     "hour": hour,

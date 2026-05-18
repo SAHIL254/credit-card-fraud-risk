@@ -25,7 +25,21 @@ FEATURE_COLUMNS_PATH = ARTIFACTS_DIR / "feature_columns.pkl"
 REFERENCE_SCORES_PATH = ARTIFACTS_DIR / "reference_scores.npy"
 
 # Feature configuration
-NUMERIC_FEATURES = ["Amount", "MerchantID", "hour", "day", "weekday"]
+NUMERIC_FEATURES = [
+    "Amount",
+    "MerchantID",
+    "hour",
+    "day",
+    "weekday",
+    "is_weekend",
+    "is_night",
+    "high_amount",
+    "merchant_fraud_rate",
+    "location_fraud_rate",
+    "amount_vs_merchant_mean",
+    "merchant_txn_count",
+]
+
 CATEGORICAL_FEATURES = ["TransactionType", "Location"]
 TARGET_COLUMN = "IsFraud"
 ID_COLUMN = "TransactionID"

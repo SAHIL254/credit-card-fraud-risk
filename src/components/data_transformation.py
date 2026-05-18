@@ -57,9 +57,6 @@ class DataTransformation:
             self.logger.info(f"✅ Data split completed")
             self.logger.info(f"   Train: {X_train.shape[0]} samples")
             self.logger.info(f"   Test: {X_test.shape[0]} samples")
-            print(f"✅ Data split completed:")
-            print(f"   Train: {X_train.shape[0]} samples")
-            print(f"   Test: {X_test.shape[0]} samples")
 
             return X_train, X_test, y_train, y_test
         except Exception as e:
@@ -104,9 +101,6 @@ class DataTransformation:
             self.logger.info("✅ Data preprocessing completed")
             self.logger.info(f"   Processed train shape: {X_train_processed.shape}")
             self.logger.info(f"   Processed test shape: {X_test_processed.shape}")
-            print("✅ Data preprocessing completed")
-            print(f"   Processed train shape: {X_train_processed.shape}")
-            print(f"   Processed test shape: {X_test_processed.shape}")
 
             return X_train_processed, X_test_processed, preprocessor
         except Exception as e:
@@ -131,9 +125,6 @@ class DataTransformation:
             self.logger.info(f"✅ Features and target prepared")
             self.logger.info(f"   Features shape: {X.shape}")
             self.logger.info(f"   Target distribution: {y.value_counts().to_dict()}")
-            print(f"✅ Features and target prepared:")
-            print(f"   Features shape: {X.shape}")
-            print(f"   Target distribution: {y.value_counts().to_dict()}")
 
             return X, y
         except Exception as e:

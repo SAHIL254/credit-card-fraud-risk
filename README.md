@@ -126,6 +126,8 @@ Traditional metrics like accuracy were **intentionally avoided**.
 ```
 CREDIT CARD FRAUD DETECTION/
 ├── src/                           # Modular source code
+|   ├── api/                       # FastAPI backend
+│   │   └── app.py
 │   ├── components/
 │   │   ├── data_ingestion.py      # Data loading and validation
 │   │   ├── data_transformation.py # Data preprocessing and splitting

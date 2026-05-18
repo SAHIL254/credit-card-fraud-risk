@@ -3,12 +3,19 @@ Prediction Pipeline
 Handles real-time fraud risk prediction for new transactions
 """
 
+import sys
+from pathlib import Path
+# Ensure project root is on sys.path when running module directly
+proj_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(proj_root))
+
 import numpy as np
 import joblib
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
+import json
 
 from src.logger import get_logger
 from src.exception import PredictionError, ArtifactNotFoundError
@@ -29,8 +36,14 @@ class PredictionPipeline:
     """
 
     def __init__(self):
-        """Initialize prediction pipeline"""
+        """
+        Initialize prediction pipeline
+        """
+
         self.logger = get_logger(__name__)
+
+        # Artifacts directory
+        self.artifacts_dir = Path(ARTIFACTS_DIR)
 
         # Risk thresholds
         self.high_risk_threshold = HIGH_RISK_THRESHOLD
@@ -39,6 +52,19 @@ class PredictionPipeline:
         # Load artifacts
         self._load_artifacts()
 
+        # Load aggregate mappings if available
+        self.aggregate_mappings: Dict[str, Dict] = {}
+
+        agg_path = self.artifacts_dir / "aggregate_mappings.json"
+
+        if agg_path.exists():
+            try:
+                with open(agg_path, "r", encoding="utf-8") as f:
+                    self.aggregate_mappings = json.load(f)
+
+            except Exception:
+                self.logger.warning("Failed to load aggregate_mappings.json")
+
         self.logger.info("PredictionPipeline initialized")
 
     def _load_artifacts(self):
@@ -46,10 +72,52 @@ class PredictionPipeline:
         try:
             self.logger.info("Loading prediction artifacts...")
 
-            self.model = joblib.load(MODEL_PATH)
+            # load preprocessor, feature columns, reference scores first
             self.preprocessor = joblib.load(PREPROCESSOR_PATH)
             self.feature_columns = joblib.load(FEATURE_COLUMNS_PATH)
             self.reference_scores = np.load(REFERENCE_SCORES_PATH)
+
+            # Discover model candidates in artifacts directory
+            artifacts_path = Path(ARTIFACTS_DIR)
+            model_files = list(artifacts_path.glob("*model*.pkl"))
+
+            if not model_files:
+                # fallback to legacy single model path
+                model_files = [Path(MODEL_PATH)] if Path(MODEL_PATH).exists() else []
+
+            if not model_files:
+                raise FileNotFoundError("No model artifact found in artifacts directory")
+
+            # If only one model, load it
+            if len(model_files) == 1:
+                self.model = joblib.load(str(model_files[0]))
+                self.logger.info(f"Loaded model: {model_files[0].name}")
+            else:
+                # Multiple models: attempt to pick best using heuristics
+                scores_path = artifacts_path / "model_scores.json"
+                best_model_path = None
+                if scores_path.exists():
+                    import json
+                    with open(scores_path, "r", encoding="utf-8") as fh:
+                        scores = json.load(fh)
+                    # scores expected as {"model_filename": score}
+                    best_name = max(scores.items(), key=lambda x: x[1])[0]
+                    candidate = artifacts_path / best_name
+                    if candidate.exists():
+                        best_model_path = candidate
+
+                # If no scores.json or candidate missing, prefer RandomForest if present
+                if best_model_path is None:
+                    rf_candidates = [p for p in model_files if "random" in p.name.lower() or "rf" in p.name.lower()]
+                    if rf_candidates:
+                        best_model_path = rf_candidates[0]
+
+                # last resort: pick first file
+                if best_model_path is None:
+                    best_model_path = model_files[0]
+
+                self.model = joblib.load(str(best_model_path))
+                self.logger.info(f"Selected best model: {best_model_path.name}")
 
             self.logger.info("✅ Prediction pipeline artifacts loaded successfully")
         except FileNotFoundError as e:
@@ -106,60 +174,82 @@ class PredictionPipeline:
     def _prepare_transaction_features(self, transaction_data: Dict[str, Any]):
         """
         Prepare transaction data for model prediction
-
-        Args:
-            transaction_data: Raw transaction data
-
-        Returns:
-            Processed DataFrame ready for prediction
         """
-        # Extract transaction details - handle both capitalized and lowercase keys
+
+        # Extract transaction details
         amount = transaction_data.get("Amount") or transaction_data.get("amount", 0)
-        merchant_id = transaction_data.get("MerchantID") or transaction_data.get("merchant_id", 0)
-        transaction_type = transaction_data.get("TransactionType") or transaction_data.get("transaction_type", "purchase")
-        location = transaction_data.get("Location") or transaction_data.get("location", "New York")
-        
-        # Extract temporal features directly if provided
+
+        transaction_type = (
+            transaction_data.get("TransactionType")
+            or transaction_data.get("transaction_type", "purchase")
+        )
+
+        location = (
+            transaction_data.get("Location")
+            or transaction_data.get("location", "New York")
+        )
+
+        # Extract temporal features
         hour = transaction_data.get("hour", datetime.now().hour)
         day = transaction_data.get("day", datetime.now().day)
         weekday = transaction_data.get("weekday", datetime.now().weekday())
-        is_weekend = transaction_data.get("is_weekend", int(datetime.now().weekday() in [5, 6]))
 
-        # Handle datetime if transaction_time is provided
-        transaction_time = transaction_data.get("transaction_time") or transaction_data.get("TransactionTime")
+        # Handle datetime if provided
+        transaction_time = (
+            transaction_data.get("transaction_time")
+            or transaction_data.get("TransactionTime")
+        )
+
         if transaction_time:
+
             if isinstance(transaction_time, str):
                 transaction_time = datetime.fromisoformat(transaction_time)
-            hour = transaction_time.hour
 
-        # Base input dictionary
-        input_dict = {
+            hour = transaction_time.hour
+            day = transaction_time.day
+            weekday = transaction_time.weekday()
+
+        # Derived features
+        is_weekend = int(weekday in [5, 6])
+
+        is_night = int(hour >= 0 and hour <= 5)
+
+        high_amount = int(
+            amount > 1000
+        )  # you can adjust threshold based on training
+
+        # Initialize all expected columns
+        input_df = pd.DataFrame(
+            np.zeros((1, len(self.feature_columns))),
+            columns=self.feature_columns
+        )
+
+        # Fill numerical/base features
+        base_features = {
             "Amount": amount,
-            "MerchantID": merchant_id,
             "hour": hour,
             "day": day,
             "weekday": weekday,
-            "is_weekend": is_weekend
+            "is_weekend": is_weekend,
+            "is_night": is_night,
+            "high_amount": high_amount
         }
 
-        # Initialize all expected columns with 0
-        input_df = np.zeros((1, len(self.feature_columns)))
-        input_df = pd.DataFrame(input_df, columns=self.feature_columns)
-
-        # Fill numeric values
-        for col in input_dict:
+        for col, value in base_features.items():
             if col in input_df.columns:
-                input_df[col] = input_dict[col]
+                input_df[col] = value
 
-        # One-hot encoding for TransactionType
-        if transaction_type.lower() == "refund":
-            if "TransactionType_refund" in input_df.columns:
-                input_df["TransactionType_refund"] = 1
+        # TransactionType encoding
+        transaction_col = f"TransactionType_{transaction_type}"
 
-        # One-hot encoding for Location
-        loc_col = f"Location_{location}"
-        if loc_col in input_df.columns:
-            input_df[loc_col] = 1
+        if transaction_col in input_df.columns:
+            input_df[transaction_col] = 1
+
+        # Location encoding
+        location_col = f"Location_{location}"
+
+        if location_col in input_df.columns:
+            input_df[location_col] = 1
 
         return input_df
 
