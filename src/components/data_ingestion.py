@@ -76,8 +76,9 @@ class DataIngestion:
         Returns:
             True if valid, raises exception if invalid
         """
+        # MerchantID is optional (not required by notebook workflow)
         required_columns = [
-            "TransactionID", "TransactionDate", "Amount", "MerchantID",
+            "TransactionID", "TransactionDate", "Amount",
             "TransactionType", "Location", "IsFraud"
         ]
 

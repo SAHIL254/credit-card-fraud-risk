@@ -128,19 +128,13 @@ class TrainingPipeline:
 
             # 8. Save Artifacts
             print("\n[8/8] Saving Artifacts...")
-            # compute and prepare aggregate mappings from training dataframe
-            mappings = {}
-            if "MerchantID" in df.columns:
-                mappings["merchant_fraud_rate"] = df.groupby("MerchantID")["IsFraud"].mean().to_dict()
-            if "Location" in df.columns:
-                mappings["location_fraud_rate"] = df.groupby("Location")["IsFraud"].mean().to_dict()
+
 
             self._save_artifacts(
                 models["random_forest"],
                 preprocessor,
                 X.columns.tolist(),
                 models["random_forest"].predict_proba(X_train_p)[:, 1],
-                mappings=mappings
             )
 
             print("\n" + "=" * 80)
@@ -163,7 +157,7 @@ class TrainingPipeline:
             print(f"\n❌ Pipeline failed with error: {str(e)}")
             raise
 
-    def _save_artifacts(self, model, preprocessor, feature_columns, train_risk_scores, mappings: dict = None):
+    def _save_artifacts(self, model, preprocessor, feature_columns, train_risk_scores):
         """
         Save trained model and preprocessing artifacts
 
@@ -190,13 +184,7 @@ class TrainingPipeline:
         np.save(reference_scores_path, train_risk_scores)
 
         print("✅ All artifacts saved successfully!")
-        # save mappings if provided
-        if mappings:
-            try:
-                with open(self.artifacts_dir / "aggregate_mappings.json", "w", encoding="utf-8") as f:
-                    json.dump(mappings, f)
-            except Exception:
-                self.logger.warning("Failed to save aggregate_mappings.json")
+
 
 if __name__ == "__main__":
     pipeline = TrainingPipeline()

@@ -52,18 +52,7 @@ class PredictionPipeline:
         # Load artifacts
         self._load_artifacts()
 
-        # Load aggregate mappings if available
-        self.aggregate_mappings: Dict[str, Dict] = {}
 
-        agg_path = self.artifacts_dir / "aggregate_mappings.json"
-
-        if agg_path.exists():
-            try:
-                with open(agg_path, "r", encoding="utf-8") as f:
-                    self.aggregate_mappings = json.load(f)
-
-            except Exception:
-                self.logger.warning("Failed to load aggregate_mappings.json")
 
         self.logger.info("PredictionPipeline initialized")
 

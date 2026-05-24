@@ -6,7 +6,7 @@ Handles feature extraction and preprocessing for fraud detection
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from src.logger import get_logger
 from src.exception import FeatureEngineeringError
@@ -105,18 +105,7 @@ class FeatureEngineering:
             # Extract temporal features
             df = self.extract_temporal_features(df)
 
-            # Aggregated merchant/location features (computed on available df)
-            if "MerchantID" in df.columns:
-                df["merchant_fraud_rate"] = df.groupby("MerchantID")["IsFraud"].transform("mean")
-                df["amount_vs_merchant_mean"] = df["Amount"] / df.groupby("MerchantID")["Amount"].transform("mean")
-                df["merchant_txn_count"] = df.groupby("MerchantID")["MerchantID"].transform("count")
-                df["merchant_fraud_rate"] = df["merchant_fraud_rate"].fillna(0)
-                df["amount_vs_merchant_mean"] = df["amount_vs_merchant_mean"].fillna(0)
-                df["merchant_txn_count"] = df["merchant_txn_count"].fillna(0)
 
-            if "Location" in df.columns:
-                df["location_fraud_rate"] = df.groupby("Location")["IsFraud"].transform("mean")
-                df["location_fraud_rate"] = df["location_fraud_rate"].fillna(0)
 
             # high amount flag
             df["high_amount"] = (df["Amount"] > df["Amount"].quantile(0.95)).astype(int)
@@ -134,7 +123,6 @@ class FeatureEngineering:
     def prepare_user_input(
         self,
         amount: float,
-        merchant_id: int,
         transaction_type: str,
         location: str,
         transaction_time: datetime,
@@ -146,7 +134,6 @@ class FeatureEngineering:
 
         Args:
             amount: Transaction amount
-            merchant_id: Merchant ID
             transaction_type: Type of transaction (purchase/refund)
             location: Transaction location
             transaction_time: Time of transaction
@@ -166,14 +153,18 @@ class FeatureEngineering:
         weekday = now.weekday()
         is_weekend = int(weekday in [5, 6])
 
-        # Base input dictionary
+        # Base input dictionary (only include MerchantID if provided)
+        is_night = int(hour >= 0 and hour <= 5)
+        high_amount = int(amount > 1000)
+
         input_dict = {
             "Amount": amount,
-            "MerchantID": merchant_id,
             "hour": hour,
             "day": day,
             "weekday": weekday,
-            "is_weekend": is_weekend
+            "is_weekend": is_weekend,
+            "is_night": is_night,
+            "high_amount": high_amount
         }
 
         # Initialize all expected columns with 0

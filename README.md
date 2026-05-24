@@ -81,6 +81,21 @@ Traditional metrics like accuracy were **intentionally avoided**.
 
 ---
 
+## 🧠 Engineered Features
+
+The model uses lightweight but business-relevant engineered features:
+
+* Transaction Amount
+* Hour of Transaction
+* Day & Weekday
+* Weekend Transaction Flag
+* Night Transaction Flag
+* High Amount Transaction Flag
+* Transaction Type
+* Transaction Location
+
+---
+
 ## 🖥 Streamlit Dashboard Features
 
 * Transaction input form
@@ -95,7 +110,7 @@ Traditional metrics like accuracy were **intentionally avoided**.
 
 ### Transaction Risk Evaluation Example
 
-* **Input**: Transaction amount, merchant, location, time
+* **Input**: Transaction amount, location, transaction type, time
 * **Output**:
 
   * Fraud Risk Score
@@ -208,6 +223,14 @@ streamlit run app.py
 
 Dashboard will be available at: `http://localhost:8501`
 
+### 4️⃣ Run the backend (FastAPI):
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend default URL: 'http://127.0.0.1:8000'
+
 ---
 
 ## 💡 Using Components Directly
@@ -246,7 +269,6 @@ pipeline = PredictionPipeline()
 # Single prediction
 result = pipeline.predict_risk({
     "amount": 1500.0,
-    "merchant_id": 42,
     "transaction_type": "purchase",
     "location": "New York",
     "transaction_time": "2024-01-15T14:30:00"

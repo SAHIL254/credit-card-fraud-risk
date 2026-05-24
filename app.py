@@ -40,10 +40,17 @@ prediction_pipeline = load_prediction_pipeline()
 # -------------------------------
 # SIDEBAR INPUTS
 # -------------------------------
+if "transaction_time" not in st.session_state:
+    st.session_state.transaction_time = datetime.datetime.now().time()
+
 st.sidebar.header("🧾 Transaction Details")
 
-amount = st.sidebar.number_input("Transaction Amount", 1.0, 1000000.0, 2500.0)
-# Merchant ID removed to match notebook (not used as a direct feature)
+amount = st.sidebar.number_input(
+    "Transaction Amount",
+    1.0,
+    1000000.0,
+    2500.0
+)
 
 transaction_type = st.sidebar.selectbox(
     "Transaction Type",
@@ -55,7 +62,14 @@ location = st.sidebar.selectbox(
     LOCATIONS
 )
 
-transaction_time = st.sidebar.time_input("Transaction Time")
+
+transaction_time = st.sidebar.time_input(
+    "Transaction Time",
+    value=st.session_state.transaction_time,
+    step=60
+)
+
+st.session_state.transaction_time = transaction_time
 
 # -------------------------------
 # FEATURE ENGINEERING
@@ -66,7 +80,8 @@ hour = transaction_time.hour
 day = now.day
 weekday = now.weekday()
 is_weekend = int(weekday in [5, 6])
-
+is_night = int(hour >= 0 and hour <= 5)
+high_amount = int(amount > 1000)
 # Prepare transaction data for prediction
 transaction_data = {
     "Amount": amount,
@@ -75,7 +90,9 @@ transaction_data = {
     "hour": hour,
     "day": day,
     "weekday": weekday,
-    "is_weekend": is_weekend
+    "is_weekend": is_weekend,
+    "is_night": is_night,
+    "high_amount": high_amount
 }
 
 # -------------------------------
@@ -101,7 +118,7 @@ with col2:
     st.markdown("### 📊 Risk Distribution (Training Data)")
     fig, ax = plt.subplots()
     ax.hist(prediction_pipeline.reference_scores, bins=50)
-    ax.axvline(risk_score, linestyle="--")
+    ax.axvline(risk_score, linestyle="--", linewidth=2)
     ax.set_xlabel("Risk Score")
     ax.set_ylabel("Frequency")
     st.pyplot(fig)

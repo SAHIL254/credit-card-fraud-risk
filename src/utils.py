@@ -27,17 +27,12 @@ REFERENCE_SCORES_PATH = ARTIFACTS_DIR / "reference_scores.npy"
 # Feature configuration
 NUMERIC_FEATURES = [
     "Amount",
-    "MerchantID",
     "hour",
     "day",
     "weekday",
     "is_weekend",
     "is_night",
     "high_amount",
-    "merchant_fraud_rate",
-    "location_fraud_rate",
-    "amount_vs_merchant_mean",
-    "merchant_txn_count",
 ]
 
 CATEGORICAL_FEATURES = ["TransactionType", "Location"]
@@ -69,8 +64,8 @@ RF_PARAMS = {
 }
 
 # Risk thresholds
-HIGH_RISK_THRESHOLD = 98.5  # percentile
-MEDIUM_RISK_THRESHOLD = 95   # percentile
+HIGH_RISK_THRESHOLD = 95  # percentile
+MEDIUM_RISK_THRESHOLD = 90  # percentile
 
 # Locations for the app
 LOCATIONS = [
